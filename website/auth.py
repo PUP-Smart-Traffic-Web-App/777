@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, flash, redirect, url_for
+from flask import Blueprint, render_template, request, flash, redirect, url_for, session
 from .models import User
 from werkzeug.security import generate_password_hash, check_password_hash
 from . import db
@@ -8,12 +8,15 @@ from flask_login import login_user, login_required, logout_user, current_user
 auth = Blueprint('auth', __name__)
 
 
+@auth.route('/',methods=['GET'])
+def home():
+    session['attempt'] = 3
+
 @auth.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
-
         user = User.query.filter_by(email=email).first()
         if user:
             if check_password_hash(user.password, password):
@@ -21,10 +24,17 @@ def login():
                 login_user(user, remember=True)
                 return redirect(url_for('views.home'))
             else:
-                flash('Invalid email or password.', category='error')
+                attempt= session.get('attempt')
+                attempt -= 1
+                session['attempt']=attempt
+
+                if attempt==1:
+                    client_ip= session.get('client_ip')
+                    flash('This is your last attempt, %s will be blocked for 24hr. %d attempt left.'  % (client_ip,attempt), 'error')
+                else:
+                    flash('Invalid login credentials, Attempts %d of 3'  % attempt, 'error')
         else:
             flash('Invalid email or password.', category='error')
-
 
     return render_template("login.html", user=current_user)
 
